@@ -53,10 +53,24 @@ class DiscordBotManager:
     async def send_message(self, channel_id: int, content: str) -> None:
         channel = self.client.get_channel(channel_id)
         if channel is None:
-            raise ValueError("Channel not found or not cached.")
+            try:
+                channel = await self.client.fetch_channel(channel_id)
+            except discord.NotFound as exc:
+                raise ValueError("Channel not found.") from exc
+            except discord.Forbidden as exc:
+                raise ValueError("Bot does not have permission to access this channel.") from exc
+            except discord.HTTPException as exc:
+                raise ValueError("Failed to fetch channel from Discord.") from exc
+
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
             raise ValueError("Channel is not a text channel.")
-        await channel.send(content)
+
+        try:
+            await channel.send(content)
+        except discord.Forbidden as exc:
+            raise ValueError("Bot does not have permission to send messages in this channel.") from exc
+        except discord.HTTPException as exc:
+            raise ValueError("Discord API error while sending message.") from exc
 
 
 bot_manager = DiscordBotManager()

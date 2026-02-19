@@ -387,7 +387,10 @@ async def settings_view(db: Session = Depends(get_db)) -> BotSettings:
 async def send_message(payload: MessageRequest, db: Session = Depends(get_db)) -> dict:
     if not bot_manager.is_ready():
         raise HTTPException(status_code=503, detail="Bot not ready")
-    await bot_manager.send_message(payload.channel_id, payload.content)
+    try:
+        await bot_manager.send_message(payload.channel_id, payload.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     log_entry = LogEntryModel(
         id=int(datetime.now(timezone.utc).timestamp() * 1000),
