@@ -1,3 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Build outputs
+build/
+out/
+
+# OS files
+Thumbs.db
+.venv
 # Logs
 logs
 *.log
@@ -35,4 +68,5 @@ coverage
 *.njsproj
 *.sln
 *.sw?
-.venv
+.pytest_cache
+.pyc*

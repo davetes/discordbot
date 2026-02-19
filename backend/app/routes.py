@@ -3,14 +3,25 @@ from __future__ import annotations
 from typing import List
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from .config import settings
 from .discord_bot import bot_manager
+from .database import SessionLocal
+from .models import BotSettingsModel, LogEntryModel, CommandModel
 
 
 router = APIRouter()
+
+
+def get_db() -> Session:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 class StatusResponse(BaseModel):
@@ -266,8 +277,19 @@ async def members() -> List[MemberItem]:
 
 
 @router.get("/commands", response_model=List[CommandItem])
-async def commands() -> List[CommandItem]:
-    return []
+async def commands(db: Session = Depends(get_db)) -> List[CommandItem]:
+    rows = db.query(CommandModel).all()
+    return [
+        CommandItem(
+            name=row.name,
+            category=row.category,
+            description=row.description,
+            usage=row.usage,
+            enabled=row.enabled,
+            cooldown=row.cooldown,
+        )
+        for row in rows
+    ]
 
 
 @router.get("/analytics", response_model=AnalyticsData)
@@ -294,73 +316,90 @@ async def analytics(range: str = "7d") -> AnalyticsData:
 
 
 @router.get("/logs", response_model=List[LogItem])
-async def logs() -> List[LogItem]:
-    guild = await _get_primary_guild()
-    if guild is None or settings.discord_default_channel_id is None:
-        return []
-    channel = guild.get_channel(settings.discord_default_channel_id)
-    if channel is None or not hasattr(channel, "history"):
-        return []
-    items: List[LogItem] = []
-    async for message in channel.history(limit=10):
-        timestamp = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        items.append(
-            LogItem(
-                id=message.id,
-                timestamp=timestamp,
-                server=guild.name,
-                user=message.author.display_name,
-                action="message",
-                details=message.content or "(attachment)",
-                level="info",
-            )
+async def logs(db: Session = Depends(get_db)) -> List[LogItem]:
+    rows = db.query(LogEntryModel).order_by(LogEntryModel.timestamp.desc()).limit(100).all()
+    return [
+        LogItem(
+            id=row.id,
+            timestamp=row.timestamp,
+            server=row.server,
+            user=row.user,
+            action=row.action,
+            details=row.details,
+            level=row.level,
         )
-    return items
+        for row in rows
+    ]
 
 
 @router.get("/settings", response_model=BotSettings)
-async def settings_view() -> BotSettings:
+async def settings_view(db: Session = Depends(get_db)) -> BotSettings:
+    existing = db.query(BotSettingsModel).first()
+    if existing is None:
+        existing = BotSettingsModel(
+            general={
+                "name": "Discord Bot",
+                "status": "Online",
+                "activityType": "watching",
+                "avatarUrl": "",
+            },
+            automod={
+                "spamFilter": True,
+                "linkFilter": True,
+                "capsFilter": False,
+                "wordBlacklist": [],
+                "maxMentions": 5,
+                "maxEmojis": 10,
+            },
+            welcome={
+                "enabled": False,
+                "channel": "#welcome",
+                "message": "Welcome to the server, {user}!",
+                "dmOnJoin": False,
+            },
+            leave={
+                "enabled": False,
+                "channel": "#logs",
+                "message": "{user} has left the server.",
+            },
+            leveling={
+                "enabled": False,
+                "xpPerMessage": 15,
+                "xpCooldown": 60,
+                "levelUpChannel": "#general",
+                "roleRewards": [],
+            },
+        )
+        db.add(existing)
+        db.commit()
+        db.refresh(existing)
+
     return BotSettings(
-        general={
-            "name": "Discord Bot",
-            "status": "Online",
-            "activityType": "watching",
-            "avatarUrl": "",
-        },
-        automod={
-            "spamFilter": True,
-            "linkFilter": True,
-            "capsFilter": False,
-            "wordBlacklist": [],
-            "maxMentions": 5,
-            "maxEmojis": 10,
-        },
-        welcome={
-            "enabled": False,
-            "channel": "#welcome",
-            "message": "Welcome to the server, {user}!",
-            "dmOnJoin": False,
-        },
-        leave={
-            "enabled": False,
-            "channel": "#logs",
-            "message": "{user} has left the server.",
-        },
-        leveling={
-            "enabled": False,
-            "xpPerMessage": 15,
-            "xpCooldown": 60,
-            "levelUpChannel": "#general",
-            "roleRewards": [],
-        },
+        general=existing.general,
+        automod=existing.automod,
+        welcome=existing.welcome,
+        leave=existing.leave,
+        leveling=existing.leveling,
     )
 
 
 @router.post("/messages")
-async def send_message(payload: MessageRequest) -> dict:
+async def send_message(payload: MessageRequest, db: Session = Depends(get_db)) -> dict:
     if not bot_manager.is_ready():
         raise HTTPException(status_code=503, detail="Bot not ready")
     await bot_manager.send_message(payload.channel_id, payload.content)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = LogEntryModel(
+        id=int(datetime.now(timezone.utc).timestamp() * 1000),
+        timestamp=now,
+        server="",
+        user="bot",
+        action="message",
+        details=payload.content,
+        level="info",
+    )
+    db.add(log_entry)
+    db.commit()
     return {"status": "sent"}
 
 

@@ -11,17 +11,22 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const BotSettings = () => {
   const { data: botSettings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
-  const settings = botSettings ?? {
-    general: { name: "Discord Bot", status: "Online", activityType: "watching", avatarUrl: "" },
-    automod: { spamFilter: true, linkFilter: true, capsFilter: false, wordBlacklist: [], maxMentions: 5, maxEmojis: 10 },
-    welcome: { enabled: false, channel: "#welcome", message: "Welcome to the server, {user}!", dmOnJoin: false },
-    leave: { enabled: false, channel: "#logs", message: "{user} has left the server." },
-    leveling: { enabled: false, xpPerMessage: 15, xpCooldown: 60, levelUpChannel: "#general", roleRewards: [] },
-  };
+  const defaultSettings = useMemo(
+    () => ({
+      general: { name: "Discord Bot", status: "Online", activityType: "watching", avatarUrl: "" },
+      automod: { spamFilter: true, linkFilter: true, capsFilter: false, wordBlacklist: [], maxMentions: 5, maxEmojis: 10 },
+      welcome: { enabled: false, channel: "#welcome", message: "Welcome to the server, {user}!", dmOnJoin: false },
+      leave: { enabled: false, channel: "#logs", message: "{user} has left the server." },
+      leveling: { enabled: false, xpPerMessage: 15, xpCooldown: 60, levelUpChannel: "#general", roleRewards: [] },
+    }),
+    []
+  );
+
+  const settings = botSettings ?? defaultSettings;
   const [blacklist, setBlacklist] = useState(settings.automod.wordBlacklist);
   const [newWord, setNewWord] = useState("");
 

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 import asyncio
+import logging
 from typing import Set
 
 from fastapi import FastAPI
@@ -10,14 +11,35 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .discord_bot import start_bot, stop_bot
+from .database import init_db
 from .routes import router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    await start_bot()
+    init_db()
+    bot_task: asyncio.Task[None] | None = None
+    if settings.discord_autostart:
+        bot_task = asyncio.create_task(start_bot())
+
+        def _log_task_result(task: asyncio.Task[None]) -> None:
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logging.exception("Discord bot failed to start; continuing without bot.")
+
+        bot_task.add_done_callback(_log_task_result)
+
     yield
-    await stop_bot()
+
+    if settings.discord_autostart:
+        await stop_bot()
+    if bot_task is not None:
+        bot_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await bot_task
 
 
 app = FastAPI(lifespan=lifespan)
