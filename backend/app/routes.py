@@ -144,6 +144,46 @@ class MessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=2000)
 
 
+class CommandToggleRequest(BaseModel):
+    enabled: bool
+
+
+class CommandCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=64)
+    category: str = "custom"
+    description: str | None = None
+    response: str | None = None
+    cooldown: str = "0s"
+    enabled: bool = True
+
+
+class SettingsUpdateRequest(BaseModel):
+    general: dict
+    automod: dict
+    welcome: dict
+    leave: dict
+    leveling: dict
+
+
+class AiIntent(BaseModel):
+    id: str
+    label: str
+    enabled: bool
+    response: str
+
+
+class AiIntentPayload(BaseModel):
+    intents: List[AiIntent]
+
+
+class AiGenerateRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=400)
+    intent_id: str | None = None
+
+
+AI_INTENTS: List[AiIntent] = []
+
+
 @router.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
@@ -383,6 +423,64 @@ async def settings_view(db: Session = Depends(get_db)) -> BotSettings:
     )
 
 
+@router.post("/settings", response_model=BotSettings)
+async def settings_update(payload: SettingsUpdateRequest, db: Session = Depends(get_db)) -> BotSettings:
+    existing = db.query(BotSettingsModel).first()
+    if existing is None:
+        existing = BotSettingsModel(
+            general=payload.general,
+            automod=payload.automod,
+            welcome=payload.welcome,
+            leave=payload.leave,
+            leveling=payload.leveling,
+        )
+        db.add(existing)
+    else:
+        existing.general = payload.general
+        existing.automod = payload.automod
+        existing.welcome = payload.welcome
+        existing.leave = payload.leave
+        existing.leveling = payload.leveling
+    db.commit()
+    db.refresh(existing)
+    return BotSettings(
+        general=existing.general,
+        automod=existing.automod,
+        welcome=existing.welcome,
+        leave=existing.leave,
+        leveling=existing.leveling,
+    )
+
+
+@router.post("/commands/{name}/enabled")
+async def command_toggle(name: str, payload: CommandToggleRequest, db: Session = Depends(get_db)) -> dict:
+    row = db.query(CommandModel).filter(CommandModel.name == name).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Command not found")
+    row.enabled = payload.enabled
+    db.commit()
+    return {"status": "ok", "name": name, "enabled": payload.enabled}
+
+
+@router.post("/commands/custom")
+async def command_create(payload: CommandCreateRequest, db: Session = Depends(get_db)) -> dict:
+    exists = db.query(CommandModel).filter(CommandModel.name == payload.name).first()
+    if exists is not None:
+        raise HTTPException(status_code=409, detail="Command already exists")
+    description = payload.description or payload.response or "Custom command"
+    row = CommandModel(
+        name=payload.name,
+        category=payload.category,
+        description=description,
+        usage=0,
+        enabled=payload.enabled,
+        cooldown=payload.cooldown,
+    )
+    db.add(row)
+    db.commit()
+    return {"status": "created", "name": payload.name}
+
+
 @router.post("/messages")
 async def send_message(payload: MessageRequest, db: Session = Depends(get_db)) -> dict:
     if not bot_manager.is_ready():
@@ -412,3 +510,30 @@ async def get_config() -> dict:
         "default_guild_id": settings.discord_guild_id,
         "default_channel_id": settings.discord_default_channel_id,
     }
+
+
+@router.get("/ai/intents", response_model=List[AiIntent])
+async def get_ai_intents() -> List[AiIntent]:
+    return AI_INTENTS
+
+
+@router.post("/ai/intents")
+async def save_ai_intents(payload: AiIntentPayload) -> dict:
+    AI_INTENTS.clear()
+    AI_INTENTS.extend(payload.intents)
+    return {"status": "saved", "count": len(AI_INTENTS)}
+
+
+@router.post("/ai/generate")
+async def generate_ai_response(payload: AiGenerateRequest) -> dict:
+    intents = AI_INTENTS
+    chosen = None
+    if payload.intent_id:
+        chosen = next((i for i in intents if i.id == payload.intent_id), None)
+    if chosen is None:
+        chosen = next((i for i in intents if i.enabled), None)
+    if chosen is None and intents:
+        chosen = intents[0]
+    canned = chosen.response if chosen else "Thanks for your message! We'll get back to you soon."
+    response = f"{canned} (Suggested for: {payload.prompt})"
+    return {"response": response}

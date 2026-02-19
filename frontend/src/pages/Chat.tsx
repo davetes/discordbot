@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Bot, Sparkles, User, Wand2 } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 const defaultIntents = [
   { id: "welcome", label: "Welcome Message", enabled: true, response: "Welcome to the server! Let me know if you need help." },
@@ -28,12 +31,20 @@ const samplePrompts = [
 type ChatMessage = { id: string; role: "user" | "assistant"; content: string };
 
 const Chat = () => {
+  const { data: fetchedIntents } = useQuery({ queryKey: ["ai-intents"], queryFn: api.aiIntents });
   const [intents, setIntents] = useState(defaultIntents);
   const [selectedIntent, setSelectedIntent] = useState(defaultIntents[0].id);
   const [message, setMessage] = useState("");
   const [history, setHistory] = useState<ChatMessage[]>([
     { id: "seed-1", role: "assistant", content: "Hi! I can help draft responses and manage auto-replies." },
   ]);
+
+  useEffect(() => {
+    if (fetchedIntents && fetchedIntents.length) {
+      setIntents(fetchedIntents);
+      setSelectedIntent((prev) => fetchedIntents.find((i) => i.id === prev)?.id ?? fetchedIntents[0].id);
+    }
+  }, [fetchedIntents]);
 
   const activeIntent = useMemo(
     () => intents.find((intent) => intent.id === selectedIntent) ?? intents[0],
@@ -55,17 +66,24 @@ const Chat = () => {
     ]);
   };
 
-  const generateResponse = (prompt: string) => {
-    const canned = activeIntent?.response || "Thanks for your message! We'll get back to you soon.";
-    return `${canned} (Suggested for: ${prompt})`;
-  };
+  const saveMutation = useMutation({
+    mutationFn: () => api.saveAiIntents({ intents }),
+    onSuccess: () => toast({ title: "Responses saved", description: "Auto-replies updated" }),
+    onError: () => toast({ title: "Save failed", description: "Could not save responses" }),
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: (prompt: string) => api.generateAiResponse({ prompt, intentId: selectedIntent }),
+    onSuccess: (data) => addMessage("assistant", data.response),
+    onError: () => addMessage("assistant", "Sorry, I couldn't generate a response right now."),
+  });
 
   const handleSend = () => {
     if (!message.trim()) return;
     const prompt = message.trim();
     setMessage("");
     addMessage("user", prompt);
-    addMessage("assistant", generateResponse(prompt));
+    generateMutation.mutate(prompt);
   };
 
   return (
@@ -177,7 +195,7 @@ const Chat = () => {
               />
             </div>
 
-            <Button className="w-full">Save Responses</Button>
+            <Button className="w-full" onClick={() => saveMutation.mutate()}>Save Responses</Button>
           </CardContent>
         </Card>
       </div>

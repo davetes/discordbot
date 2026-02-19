@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 import { X } from "lucide-react";
@@ -27,21 +27,31 @@ const BotSettings = () => {
   );
 
   const settings = botSettings ?? defaultSettings;
-  const [blacklist, setBlacklist] = useState(settings.automod.wordBlacklist);
+  const [draft, setDraft] = useState(settings);
   const [newWord, setNewWord] = useState("");
 
   useEffect(() => {
-    setBlacklist(settings.automod.wordBlacklist);
-  }, [settings.automod.wordBlacklist]);
+    setDraft(settings);
+  }, [settings]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.saveSettings(draft),
+    onSuccess: () => toast({ title: "Settings saved", description: "Bot configuration updated successfully" }),
+    onError: () => toast({ title: "Save failed", description: "Could not save settings" }),
+  });
 
   const addWord = () => {
-    if (newWord.trim() && !blacklist.includes(newWord.trim())) {
-      setBlacklist([...blacklist, newWord.trim()]);
+    const value = newWord.trim();
+    if (value && !draft.automod.wordBlacklist.includes(value)) {
+      setDraft((prev) => ({
+        ...prev,
+        automod: { ...prev.automod, wordBlacklist: [...prev.automod.wordBlacklist, value] },
+      }));
       setNewWord("");
     }
   };
 
-  const save = () => toast({ title: "Settings saved", description: "Bot configuration updated successfully" });
+  const save = () => saveMutation.mutate();
 
   return (
     <div className="space-y-6">
@@ -65,11 +75,18 @@ const BotSettings = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Bot Name</Label>
-                  <Input defaultValue={settings.general.name} className="bg-secondary border-border" />
+                  <Input
+                    value={draft.general.name}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, general: { ...prev.general, name: e.target.value } }))}
+                    className="bg-secondary border-border"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Activity Type</Label>
-                  <Select defaultValue={settings.general.activityType}>
+                  <Select
+                    value={draft.general.activityType}
+                    onValueChange={(value) => setDraft((prev) => ({ ...prev, general: { ...prev.general, activityType: value } }))}
+                  >
                     <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="playing">Playing</SelectItem>
@@ -82,7 +99,11 @@ const BotSettings = () => {
               </div>
               <div className="space-y-2">
                 <Label>Status Message</Label>
-                <Input defaultValue={settings.general.status} className="bg-secondary border-border" />
+                <Input
+                  value={draft.general.status}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, general: { ...prev.general, status: e.target.value } }))}
+                  className="bg-secondary border-border"
+                />
               </div>
               <Button onClick={save}>Save Changes</Button>
             </CardContent>
@@ -100,26 +121,53 @@ const BotSettings = () => {
               ].map((item) => (
                 <div key={item.key} className="flex items-center justify-between">
                   <Label>{item.label}</Label>
-                  <Switch defaultChecked={item.default} />
+                  <Switch
+                    checked={draft.automod[item.key as keyof typeof draft.automod] as boolean}
+                    onCheckedChange={(value) =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        automod: { ...prev.automod, [item.key]: value },
+                      }))
+                    }
+                  />
                 </div>
               ))}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Max Mentions per Message</Label>
-                  <Input type="number" defaultValue={settings.automod.maxMentions} className="bg-secondary border-border" />
+                  <Input
+                    type="number"
+                    value={draft.automod.maxMentions}
+                    onChange={(e) => setDraft((prev) => ({
+                      ...prev,
+                      automod: { ...prev.automod, maxMentions: Number(e.target.value || 0) },
+                    }))}
+                    className="bg-secondary border-border"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Max Emojis per Message</Label>
-                  <Input type="number" defaultValue={settings.automod.maxEmojis} className="bg-secondary border-border" />
+                  <Input
+                    type="number"
+                    value={draft.automod.maxEmojis}
+                    onChange={(e) => setDraft((prev) => ({
+                      ...prev,
+                      automod: { ...prev.automod, maxEmojis: Number(e.target.value || 0) },
+                    }))}
+                    className="bg-secondary border-border"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Word Blacklist</Label>
                 <div className="flex flex-wrap gap-2 mb-2">
-                  {blacklist.map((w) => (
+                  {draft.automod.wordBlacklist.map((w) => (
                     <Badge key={w} variant="secondary" className="gap-1">
                       {w}
-                      <button onClick={() => setBlacklist(blacklist.filter((x) => x !== w))}><X className="w-3 h-3" /></button>
+                      <button onClick={() => setDraft((prev) => ({
+                        ...prev,
+                        automod: { ...prev.automod, wordBlacklist: prev.automod.wordBlacklist.filter((x) => x !== w) },
+                      }))}><X className="w-3 h-3" /></button>
                     </Badge>
                   ))}
                 </div>
@@ -139,20 +187,46 @@ const BotSettings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Enabled</Label>
-                <Switch defaultChecked={settings.welcome.enabled} />
+                <Switch
+                  checked={draft.welcome.enabled}
+                  onCheckedChange={(value) => setDraft((prev) => ({
+                    ...prev,
+                    welcome: { ...prev.welcome, enabled: value },
+                  }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Channel</Label>
-                <Input defaultValue={settings.welcome.channel} className="bg-secondary border-border" />
+                <Input
+                  value={draft.welcome.channel}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    welcome: { ...prev.welcome, channel: e.target.value },
+                  }))}
+                  className="bg-secondary border-border"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Message Template</Label>
-                <Textarea defaultValue={settings.welcome.message} className="bg-secondary border-border" />
+                <Textarea
+                  value={draft.welcome.message}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    welcome: { ...prev.welcome, message: e.target.value },
+                  }))}
+                  className="bg-secondary border-border"
+                />
                 <p className="text-xs text-muted-foreground">Use {"{user}"} for username, {"{server}"} for server name</p>
               </div>
               <div className="flex items-center justify-between">
                 <Label>DM on Join</Label>
-                <Switch defaultChecked={settings.welcome.dmOnJoin} />
+                <Switch
+                  checked={draft.welcome.dmOnJoin}
+                  onCheckedChange={(value) => setDraft((prev) => ({
+                    ...prev,
+                    welcome: { ...prev.welcome, dmOnJoin: value },
+                  }))}
+                />
               </div>
               <Button onClick={save}>Save Changes</Button>
             </CardContent>
@@ -163,15 +237,35 @@ const BotSettings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Enabled</Label>
-                <Switch defaultChecked={settings.leave.enabled} />
+                <Switch
+                  checked={draft.leave.enabled}
+                  onCheckedChange={(value) => setDraft((prev) => ({
+                    ...prev,
+                    leave: { ...prev.leave, enabled: value },
+                  }))}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Channel</Label>
-                <Input defaultValue={settings.leave.channel} className="bg-secondary border-border" />
+                <Input
+                  value={draft.leave.channel}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    leave: { ...prev.leave, channel: e.target.value },
+                  }))}
+                  className="bg-secondary border-border"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Message Template</Label>
-                <Textarea defaultValue={settings.leave.message} className="bg-secondary border-border" />
+                <Textarea
+                  value={draft.leave.message}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    leave: { ...prev.leave, message: e.target.value },
+                  }))}
+                  className="bg-secondary border-border"
+                />
               </div>
               <Button onClick={save}>Save Changes</Button>
             </CardContent>
@@ -184,26 +278,55 @@ const BotSettings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <Label>Enable Leveling</Label>
-                <Switch defaultChecked={settings.leveling.enabled} />
+                <Switch
+                  checked={draft.leveling.enabled}
+                  onCheckedChange={(value) => setDraft((prev) => ({
+                    ...prev,
+                    leveling: { ...prev.leveling, enabled: value },
+                  }))}
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>XP per Message</Label>
-                  <Input type="number" defaultValue={settings.leveling.xpPerMessage} className="bg-secondary border-border" />
+                  <Input
+                    type="number"
+                    value={draft.leveling.xpPerMessage}
+                    onChange={(e) => setDraft((prev) => ({
+                      ...prev,
+                      leveling: { ...prev.leveling, xpPerMessage: Number(e.target.value || 0) },
+                    }))}
+                    className="bg-secondary border-border"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>XP Cooldown (seconds)</Label>
-                  <Input type="number" defaultValue={settings.leveling.xpCooldown} className="bg-secondary border-border" />
+                  <Input
+                    type="number"
+                    value={draft.leveling.xpCooldown}
+                    onChange={(e) => setDraft((prev) => ({
+                      ...prev,
+                      leveling: { ...prev.leveling, xpCooldown: Number(e.target.value || 0) },
+                    }))}
+                    className="bg-secondary border-border"
+                  />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Level Up Announcement Channel</Label>
-                <Input defaultValue={settings.leveling.levelUpChannel} className="bg-secondary border-border" />
+                <Input
+                  value={draft.leveling.levelUpChannel}
+                  onChange={(e) => setDraft((prev) => ({
+                    ...prev,
+                    leveling: { ...prev.leveling, levelUpChannel: e.target.value },
+                  }))}
+                  className="bg-secondary border-border"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Role Rewards</Label>
                 <div className="space-y-2">
-                  {settings.leveling.roleRewards.map((reward) => (
+                  {draft.leveling.roleRewards.map((reward) => (
                     <div key={reward.level} className="flex items-center gap-3 p-2 bg-secondary rounded-lg">
                       <Badge variant="outline" className="text-xs">Lv.{reward.level}</Badge>
                       <span className="text-sm text-foreground">{reward.role}</span>

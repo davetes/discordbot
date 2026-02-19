@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +28,30 @@ const Commands = () => {
   const [activeTab, setActiveTab] = useState("all");
   const { data: commands = [] } = useQuery({ queryKey: ["commands"], queryFn: api.commands });
   const [cmdStates, setCmdStates] = useState<Record<string, boolean>>({});
+  const [commandName, setCommandName] = useState("");
+  const [commandResponse, setCommandResponse] = useState("");
+  const [commandPermission, setCommandPermission] = useState("everyone");
+  const queryClient = useQueryClient();
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) => api.updateCommandEnabled(name, enabled),
+    onError: (_error, variables) => {
+      setCmdStates((prev) => ({ ...prev, [variables.name]: !variables.enabled }));
+      toast({ title: "Update failed", description: "Could not update command status" });
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: () => api.createCommand({ name: commandName.trim(), response: commandResponse.trim(), permission: commandPermission }),
+    onSuccess: () => {
+      toast({ title: "Command created", description: "Custom command saved" });
+      setCommandName("");
+      setCommandResponse("");
+      setCommandPermission("everyone");
+      queryClient.invalidateQueries({ queryKey: ["commands"] });
+    },
+    onError: () => toast({ title: "Create failed", description: "Could not create command" }),
+  });
 
   useEffect(() => {
     if (commands.length) {
@@ -55,15 +79,15 @@ const Commands = () => {
             <div className="space-y-4 mt-2">
               <div className="space-y-2">
                 <Label>Command Name</Label>
-                <Input placeholder="e.g. hello" className="bg-secondary border-border" />
+                <Input value={commandName} onChange={(e) => setCommandName(e.target.value)} placeholder="e.g. hello" className="bg-secondary border-border" />
               </div>
               <div className="space-y-2">
                 <Label>Response</Label>
-                <Textarea placeholder="What should the bot respond with?" className="bg-secondary border-border" />
+                <Textarea value={commandResponse} onChange={(e) => setCommandResponse(e.target.value)} placeholder="What should the bot respond with?" className="bg-secondary border-border" />
               </div>
               <div className="space-y-2">
                 <Label>Required Permission</Label>
-                <Select>
+                <Select value={commandPermission} onValueChange={setCommandPermission}>
                   <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select permission" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="everyone">Everyone</SelectItem>
@@ -72,7 +96,18 @@ const Commands = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full" onClick={() => toast({ title: "Command created", description: "Custom command saved" })}>Create Command</Button>
+              <Button
+                className="w-full"
+                onClick={() => {
+                  if (!commandName.trim() || !commandResponse.trim()) {
+                    toast({ title: "Missing fields", description: "Name and response are required" });
+                    return;
+                  }
+                  createMutation.mutate();
+                }}
+              >
+                Create Command
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -112,7 +147,10 @@ const Commands = () => {
                   <TableCell className="text-right">
                     <Switch
                       checked={cmdStates[cmd.name]}
-                      onCheckedChange={(v) => setCmdStates((p) => ({ ...p, [cmd.name]: v }))}
+                      onCheckedChange={(v) => {
+                        setCmdStates((p) => ({ ...p, [cmd.name]: v }));
+                        toggleMutation.mutate({ name: cmd.name, enabled: v });
+                      }}
                     />
                   </TableCell>
                 </TableRow>

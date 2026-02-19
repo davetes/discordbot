@@ -90,6 +90,18 @@ async function apiGet<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function apiPost<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`API error ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
 export const api = {
   botInfo: () => apiGet<BotInfo>("/bot/info"),
   dashboard: () => apiGet<DashboardResponse>("/dashboard"),
@@ -99,4 +111,14 @@ export const api = {
   analytics: (range: string) => apiGet<AnalyticsData>(`/analytics?range=${range}`),
   logs: () => apiGet<LogItem[]>("/logs"),
   settings: () => apiGet<BotSettings>("/settings"),
+  updateCommandEnabled: (name: string, enabled: boolean) =>
+    apiPost<{ status: string; name: string; enabled: boolean }>(`/commands/${name}/enabled`, { enabled }),
+  createCommand: (payload: { name: string; response: string; permission: string }) =>
+    apiPost<{ status: string; name: string }>("/commands/custom", payload),
+  saveSettings: (payload: BotSettings) => apiPost<BotSettings>("/settings", payload),
+  aiIntents: () => apiGet<{ id: string; label: string; enabled: boolean; response: string }[]>("/ai/intents"),
+  saveAiIntents: (payload: { intents: { id: string; label: string; enabled: boolean; response: string }[] }) =>
+    apiPost<{ status: string; count: number }>("/ai/intents", payload),
+  generateAiResponse: (payload: { prompt: string; intentId?: string }) =>
+    apiPost<{ response: string }>("/ai/generate", { prompt: payload.prompt, intent_id: payload.intentId }),
 };
