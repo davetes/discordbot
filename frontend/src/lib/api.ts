@@ -123,7 +123,8 @@ export const api = {
   servers: () => apiGet<ServerItem[]>("/servers"),
   members: () => apiGet<MemberItem[]>("/members"),
   memberAction: (memberId: number, payload: { action: string; reason?: string; durationMinutes?: number; guildId?: number }) =>
-    apiPost<{ status: string; action: string }>(`/members/${memberId}/action`, {
+    apiPost<{ status: string; action: string }>("/members/action", {
+      member_id: memberId,
       action: payload.action,
       reason: payload.reason,
       duration_minutes: payload.durationMinutes,

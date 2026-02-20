@@ -160,6 +160,7 @@ class MessageRequest(BaseModel):
 
 
 class MemberActionRequest(BaseModel):
+    member_id: int | None = None
     action: str = Field(..., description="warn|mute|kick|ban")
     reason: str | None = None
     duration_minutes: int | None = None
@@ -460,8 +461,7 @@ async def members() -> List[MemberItem]:
     return results
 
 
-@router.post("/members/{member_id}/action")
-async def member_action(member_id: int, payload: MemberActionRequest, db: Session = Depends(get_db)) -> dict:
+async def _perform_member_action(member_id: int, payload: MemberActionRequest, db: Session) -> dict:
     if not bot_manager.is_ready():
         raise HTTPException(status_code=503, detail="Bot not ready")
 
@@ -500,6 +500,18 @@ async def member_action(member_id: int, payload: MemberActionRequest, db: Sessio
 
     db.commit()
     return {"status": "ok", "action": action}
+
+
+@router.post("/members/{member_id}/action")
+async def member_action(member_id: int, payload: MemberActionRequest, db: Session = Depends(get_db)) -> dict:
+    return await _perform_member_action(member_id, payload, db)
+
+
+@router.post("/members/action")
+async def member_action_body(payload: MemberActionRequest, db: Session = Depends(get_db)) -> dict:
+    if payload.member_id is None:
+        raise HTTPException(status_code=400, detail="member_id is required")
+    return await _perform_member_action(payload.member_id, payload, db)
 
 
 @router.get("/commands", response_model=List[CommandItem])
