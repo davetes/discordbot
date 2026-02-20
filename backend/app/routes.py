@@ -251,7 +251,7 @@ async def _get_primary_guild():
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
-async def dashboard() -> DashboardResponse:
+async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
     bot = await bot_info()
     guilds = list(bot_manager.guilds())
     total_servers = len(guilds)
@@ -264,9 +264,48 @@ async def dashboard() -> DashboardResponse:
     ]
     months = ["Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"]
     server_growth = [ServerGrowthPoint(month=m, servers=total_servers) for m in months]
-    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    command_usage = [CommandUsagePoint(day=d, commands=0) for d in days]
-    recent = []
+    today = datetime.now(timezone.utc).date()
+    day_labels = []
+    day_counts = []
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        day_labels.append(day.strftime("%a"))
+        day_counts.append(0)
+
+    log_rows = db.query(LogEntryModel).filter(LogEntryModel.action == "command").all()
+    for row in log_rows:
+        try:
+            ts = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        day = ts.date()
+        if day < today - timedelta(days=6) or day > today:
+            continue
+        idx = (day - (today - timedelta(days=6))).days
+        if 0 <= idx < len(day_counts):
+            day_counts[idx] += 1
+
+    command_usage = [CommandUsagePoint(day=label, commands=count) for label, count in zip(day_labels, day_counts)]
+    log_rows = db.query(LogEntryModel).order_by(LogEntryModel.timestamp.desc()).limit(8).all()
+    icon_map = {
+        "command": "Terminal",
+        "automod": "Shield",
+        "message": "Plus",
+        "join": "UserPlus",
+        "leave": "AlertTriangle",
+    }
+    recent = [
+        ActivityItem(
+            id=row.id,
+            type=row.action,
+            message=(
+                f"**{row.server}**: {row.details}" if row.server else f"{row.action}: {row.details}"
+            ),
+            time=row.timestamp,
+            icon=icon_map.get(row.action, "Plus"),
+        )
+        for row in log_rows
+    ]
     return DashboardResponse(
         botInfo=bot,
         statsCards=stats,
