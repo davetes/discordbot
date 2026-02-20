@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from .config import settings
 from .discord_bot import bot_manager
 from .database import SessionLocal
-from .models import BotSettingsModel, LogEntryModel, CommandModel
+from .models import BotSettingsModel, LogEntryModel, CommandModel, ServerSettingsModel
 
 
 router = APIRouter()
@@ -92,6 +92,12 @@ class ServerItem(BaseModel):
     modules: List[str]
     icon: str
     status: str
+
+
+class ServerSettings(BaseModel):
+    prefix: str
+    language: str
+    modules: List[str]
 
 
 class MemberItem(BaseModel):
@@ -271,9 +277,17 @@ async def dashboard() -> DashboardResponse:
 
 
 @router.get("/servers", response_model=List[ServerItem])
-async def servers() -> List[ServerItem]:
+async def servers(db: Session = Depends(get_db)) -> List[ServerItem]:
     items: List[ServerItem] = []
-    for guild in bot_manager.guilds():
+    guilds = list(bot_manager.guilds())
+    settings_rows = db.query(ServerSettingsModel).filter(ServerSettingsModel.guild_id.in_([g.id for g in guilds])).all()
+    settings_by_id = {row.guild_id: row for row in settings_rows}
+
+    for guild in guilds:
+        settings_row = settings_by_id.get(guild.id)
+        prefix = settings_row.prefix if settings_row else "!"
+        language = settings_row.language if settings_row else "english"
+        modules = settings_row.modules if settings_row else ["moderation", "utility"]
         joined = guild.me.joined_at.strftime("%Y-%m-%d") if guild.me and guild.me.joined_at else ""
         items.append(
             ServerItem(
@@ -281,14 +295,41 @@ async def servers() -> List[ServerItem]:
                 name=guild.name,
                 members=guild.member_count or 0,
                 joined=joined,
-                prefix="!",
-                language="English",
-                modules=["moderation", "utility"],
+                prefix=prefix,
+                language=language.capitalize(),
+                modules=modules,
                 icon="🌐",
                 status="active",
             )
         )
     return items
+
+
+@router.get("/servers/{guild_id}/settings", response_model=ServerSettings)
+async def server_settings_view(guild_id: int, db: Session = Depends(get_db)) -> ServerSettings:
+    row = db.query(ServerSettingsModel).filter(ServerSettingsModel.guild_id == guild_id).first()
+    if row is None:
+        return ServerSettings(prefix="!", language="english", modules=["moderation", "utility"])
+    return ServerSettings(prefix=row.prefix, language=row.language, modules=row.modules)
+
+
+@router.post("/servers/{guild_id}/settings", response_model=ServerSettings)
+async def server_settings_update(guild_id: int, payload: ServerSettings, db: Session = Depends(get_db)) -> ServerSettings:
+    row = db.query(ServerSettingsModel).filter(ServerSettingsModel.guild_id == guild_id).first()
+    if row is None:
+        row = ServerSettingsModel(
+            guild_id=guild_id,
+            prefix=payload.prefix,
+            language=payload.language,
+            modules=payload.modules,
+        )
+        db.add(row)
+    else:
+        row.prefix = payload.prefix
+        row.language = payload.language
+        row.modules = payload.modules
+    db.commit()
+    return ServerSettings(prefix=row.prefix, language=row.language, modules=row.modules)
 
 
 @router.get("/members", response_model=List[MemberItem])

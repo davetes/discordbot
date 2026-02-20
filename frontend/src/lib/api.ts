@@ -37,6 +37,12 @@ export type ServerItem = {
   status: string;
 };
 
+export type ServerSettings = {
+  prefix: string;
+  language: string;
+  modules: string[];
+};
+
 export type MemberItem = {
   id: number;
   name: string;
@@ -111,6 +117,9 @@ export const api = {
   analytics: (range: string) => apiGet<AnalyticsData>(`/analytics?range=${range}`),
   logs: () => apiGet<LogItem[]>("/logs"),
   settings: () => apiGet<BotSettings>("/settings"),
+  serverSettings: (guildId: number) => apiGet<ServerSettings>(`/servers/${guildId}/settings`),
+  saveServerSettings: (guildId: number, payload: ServerSettings) =>
+    apiPost<ServerSettings>(`/servers/${guildId}/settings`, payload),
   updateCommandEnabled: (name: string, enabled: boolean) =>
     apiPost<{ status: string; name: string; enabled: boolean }>(`/commands/${name}/enabled`, { enabled }),
   createCommand: (payload: { name: string; response: string; permission: string }) =>

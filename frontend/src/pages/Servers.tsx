@@ -1,20 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Search, Settings, Users, Calendar } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/hooks/use-toast";
 
 const Servers = () => {
   const [search, setSearch] = useState("");
   const { data: servers = [] } = useQuery({ queryKey: ["servers"], queryFn: api.servers });
   const [selectedServer, setSelectedServer] = useState<(typeof servers)[number] | null>(null);
+  const [draft, setDraft] = useState({ prefix: "!", language: "english", modules: [] as string[] });
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (selectedServer) {
+      setDraft({
+        prefix: selectedServer.prefix,
+        language: selectedServer.language.toLowerCase(),
+        modules: selectedServer.modules,
+      });
+    }
+  }, [selectedServer]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.saveServerSettings(selectedServer!.id, draft),
+    onSuccess: () => {
+      toast({ title: "Server updated", description: "Settings saved successfully" });
+      queryClient.invalidateQueries({ queryKey: ["servers"] });
+    },
+    onError: () => toast({ title: "Save failed", description: "Could not save server settings" }),
+  });
 
   const filtered = servers.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase())
@@ -66,11 +88,15 @@ const Servers = () => {
                     <div className="space-y-4 mt-2">
                       <div className="space-y-2">
                         <Label>Prefix</Label>
-                        <Input defaultValue={server.prefix} className="bg-secondary border-border" />
+                        <Input
+                          value={draft.prefix}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, prefix: e.target.value }))}
+                          className="bg-secondary border-border"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Language</Label>
-                        <Select defaultValue={server.language.toLowerCase()}>
+                        <Select value={draft.language} onValueChange={(value) => setDraft((prev) => ({ ...prev, language: value }))}>
                           <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="english">English</SelectItem>
@@ -85,12 +111,30 @@ const Servers = () => {
                           {["moderation", "music", "fun", "utility"].map((mod) => (
                             <div key={mod} className="flex items-center justify-between">
                               <span className="text-sm capitalize text-foreground">{mod}</span>
-                              <Switch defaultChecked={server.modules.includes(mod)} />
+                              <Switch
+                                checked={draft.modules.includes(mod)}
+                                onCheckedChange={(value) =>
+                                  setDraft((prev) => ({
+                                    ...prev,
+                                    modules: value
+                                      ? [...prev.modules, mod]
+                                      : prev.modules.filter((item) => item !== mod),
+                                  }))
+                                }
+                              />
                             </div>
                           ))}
                         </div>
                       </div>
-                      <Button className="w-full">Save Changes</Button>
+                      <Button
+                        className="w-full"
+                        onClick={() => {
+                          if (!selectedServer) return;
+                          saveMutation.mutate();
+                        }}
+                      >
+                        Save Changes
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>

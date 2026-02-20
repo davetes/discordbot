@@ -40,3 +40,12 @@ class CommandModel(Base):
     usage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     cooldown: Mapped[str] = mapped_column(String(16), default="0s", nullable=False)
+
+
+class ServerSettingsModel(Base):
+    __tablename__ = "server_settings"
+
+    guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    prefix: Mapped[str] = mapped_column(String(16), default="!", nullable=False)
+    language: Mapped[str] = mapped_column(String(32), default="english", nullable=False)
+    modules: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
