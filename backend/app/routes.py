@@ -443,6 +443,10 @@ async def settings_update(payload: SettingsUpdateRequest, db: Session = Depends(
         existing.leveling = payload.leveling
     db.commit()
     db.refresh(existing)
+    try:
+        await bot_manager.refresh_settings()
+    except Exception:
+        pass
     return BotSettings(
         general=existing.general,
         automod=existing.automod,
