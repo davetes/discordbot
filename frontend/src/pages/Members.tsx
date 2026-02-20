@@ -3,12 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Search, Ban, UserMinus, VolumeX, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
+import { Label } from "@/components/ui/label";
 
 const statusColors: Record<string, string> = {
   online: "bg-discord-green",
@@ -21,6 +22,24 @@ const Members = () => {
   const [search, setSearch] = useState("");
   const { data: members = [] } = useQuery({ queryKey: ["members"], queryFn: api.members });
   const [actionDialog, setActionDialog] = useState<{ member: (typeof members)[number]; action: string } | null>(null);
+  const [reason, setReason] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(10);
+
+  const actionMutation = useMutation({
+    mutationFn: ({ memberId, action }: { memberId: number; action: string }) =>
+      api.memberAction(memberId, {
+        action: action.toLowerCase(),
+        reason: reason.trim() || undefined,
+        durationMinutes: action.toLowerCase() === "mute" ? durationMinutes : undefined,
+        guildId: actionDialog?.member.guild_id,
+      }),
+    onSuccess: () => {
+      toast({ title: "Action executed", description: "Member action completed" });
+      setActionDialog(null);
+      setReason("");
+    },
+    onError: () => toast({ title: "Action failed", description: "Could not perform member action" }),
+  });
 
   const filtered = members.filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase())
@@ -28,8 +47,7 @@ const Members = () => {
 
   const handleAction = () => {
     if (actionDialog) {
-      toast({ title: `${actionDialog.action} executed`, description: `Action performed on ${actionDialog.member.name}` });
-      setActionDialog(null);
+      actionMutation.mutate({ memberId: actionDialog.member.id, action: actionDialog.action });
     }
   };
 
@@ -118,6 +136,23 @@ const Members = () => {
               Are you sure you want to {actionDialog?.action.toLowerCase()} <strong>{actionDialog?.member.name}</strong>?
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} className="bg-secondary border-border" />
+            </div>
+            {actionDialog?.action === "Mute" && (
+              <div className="space-y-2">
+                <Label>Duration (minutes)</Label>
+                <Input
+                  type="number"
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(Number(e.target.value || 0))}
+                  className="bg-secondary border-border"
+                />
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setActionDialog(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleAction}>{actionDialog?.action}</Button>

@@ -102,6 +102,7 @@ class ServerSettings(BaseModel):
 
 class MemberItem(BaseModel):
     id: int
+    guild_id: int
     name: str
     tag: str
     avatar: str
@@ -156,6 +157,13 @@ class BotSettings(BaseModel):
 class MessageRequest(BaseModel):
     channel_id: int = Field(..., description="Discord channel id")
     content: str = Field(..., min_length=1, max_length=2000)
+
+
+class MemberActionRequest(BaseModel):
+    action: str = Field(..., description="warn|mute|kick|ban")
+    reason: str | None = None
+    duration_minutes: int | None = None
+    guild_id: int | None = None
 
 
 class CommandToggleRequest(BaseModel):
@@ -344,6 +352,10 @@ async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
         "leave": "AlertTriangle",
         "server_join": "Plus",
         "server_leave": "AlertTriangle",
+        "warn": "AlertTriangle",
+        "mute": "Shield",
+        "kick": "AlertTriangle",
+        "ban": "AlertTriangle",
     }
     recent = [
         ActivityItem(
@@ -435,6 +447,7 @@ async def members() -> List[MemberItem]:
         results.append(
             MemberItem(
                 id=member.id,
+                guild_id=guild.id,
                 name=member.display_name,
                 tag=tag,
                 avatar="👤",
@@ -445,6 +458,48 @@ async def members() -> List[MemberItem]:
             )
         )
     return results
+
+
+@router.post("/members/{member_id}/action")
+async def member_action(member_id: int, payload: MemberActionRequest, db: Session = Depends(get_db)) -> dict:
+    if not bot_manager.is_ready():
+        raise HTTPException(status_code=503, detail="Bot not ready")
+
+    guild_id = payload.guild_id
+    guild = bot_manager.get_guild(guild_id) if guild_id else await _get_primary_guild()
+    if guild is None and guild_id:
+        try:
+            guild = await bot_manager.client.fetch_guild(guild_id)
+        except Exception:
+            guild = None
+    if guild is None:
+        raise HTTPException(status_code=503, detail="Guild not available")
+    try:
+        member = guild.get_member(member_id) or await guild.fetch_member(member_id)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail="Member not found") from exc
+
+    action = payload.action.lower()
+    reason = payload.reason or ""
+
+    if action == "warn":
+        await bot_manager._log_action("warn", f"{member.display_name}: {reason}", server=guild.name)
+    elif action == "mute":
+        minutes = payload.duration_minutes or 10
+        until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        await member.timeout(until, reason=reason)
+        await bot_manager._log_action("mute", f"{member.display_name}: {minutes}m", server=guild.name)
+    elif action == "kick":
+        await member.kick(reason=reason)
+        await bot_manager._log_action("kick", f"{member.display_name}: {reason}", server=guild.name)
+    elif action == "ban":
+        await member.ban(reason=reason, delete_message_days=0)
+        await bot_manager._log_action("ban", f"{member.display_name}: {reason}", server=guild.name)
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported action")
+
+    db.commit()
+    return {"status": "ok", "action": action}
 
 
 @router.get("/commands", response_model=List[CommandItem])
@@ -554,6 +609,10 @@ async def notifications(db: Session = Depends(get_db)) -> List[NotificationItem]
         "leave": "Member left",
         "server_join": "Server added",
         "server_leave": "Server removed",
+        "warn": "Member warned",
+        "mute": "Member muted",
+        "kick": "Member kicked",
+        "ban": "Member banned",
     }
     return [
         NotificationItem(

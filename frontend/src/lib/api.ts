@@ -45,6 +45,7 @@ export type ServerSettings = {
 
 export type MemberItem = {
   id: number;
+  guild_id: number;
   name: string;
   tag: string;
   avatar: string;
@@ -121,6 +122,13 @@ export const api = {
   dashboard: () => apiGet<DashboardResponse>("/dashboard"),
   servers: () => apiGet<ServerItem[]>("/servers"),
   members: () => apiGet<MemberItem[]>("/members"),
+  memberAction: (memberId: number, payload: { action: string; reason?: string; durationMinutes?: number; guildId?: number }) =>
+    apiPost<{ status: string; action: string }>(`/members/${memberId}/action`, {
+      action: payload.action,
+      reason: payload.reason,
+      duration_minutes: payload.durationMinutes,
+      guild_id: payload.guildId,
+    }),
   commands: () => apiGet<CommandItem[]>("/commands"),
   analytics: (range: string) => apiGet<AnalyticsData>(`/analytics?range=${range}`),
   logs: () => apiGet<LogItem[]>("/logs"),
