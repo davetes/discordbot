@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -374,20 +374,60 @@ async def commands(db: Session = Depends(get_db)) -> List[CommandItem]:
 
 
 @router.get("/analytics", response_model=AnalyticsData)
-async def analytics(range: str = "7d") -> AnalyticsData:
-    guilds = list(bot_manager.guilds())
-    top_servers = [
-        {"name": g.name, "commands": (g.member_count or 0) * 2}
-        for g in sorted(guilds, key=lambda x: x.member_count or 0, reverse=True)[:5]
-    ]
-    top_users = []
+async def analytics(range_param: str = "7d", db: Session = Depends(get_db)) -> AnalyticsData:
+    now = datetime.now(timezone.utc)
+    duration = timedelta(days=7)
+    if range_param.endswith("d") and range_param[:-1].isdigit():
+        duration = timedelta(days=int(range_param[:-1]))
+    elif range_param.endswith("h") and range_param[:-1].isdigit():
+        duration = timedelta(hours=int(range_param[:-1]))
+    start_time = now - duration
+
+    rows = db.query(LogEntryModel).filter(LogEntryModel.action == "command").all()
+    recent_rows = []
+    for row in rows:
+        try:
+            ts = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ts >= start_time:
+            recent_rows.append((row, ts))
+
+    server_counts: dict[str, int] = {}
+    hour_counts = {h: 0 for h in range(0, 24, 2)}
+    for row, ts in recent_rows:
+        if row.server:
+            server_counts[row.server] = server_counts.get(row.server, 0) + 1
+        bucket = (ts.hour // 2) * 2
+        hour_counts[bucket] = hour_counts.get(bucket, 0) + 1
+
+    command_rows = db.query(CommandModel).all()
+    categories = {"music": 0, "fun": 0, "moderation": 0, "utility": 0}
+    for cmd in command_rows:
+        category = cmd.category.lower() if cmd.category else "utility"
+        categories[category] = categories.get(category, 0) + (cmd.usage or 0)
+
     command_breakdown = [
-        {"name": "Music", "value": 0, "fill": "hsl(var(--chart-1))"},
-        {"name": "Fun", "value": 0, "fill": "hsl(var(--chart-2))"},
-        {"name": "Moderation", "value": 0, "fill": "hsl(var(--chart-3))"},
-        {"name": "Utility", "value": 0, "fill": "hsl(var(--chart-4))"},
+        {"name": "Music", "value": categories.get("music", 0), "fill": "hsl(var(--chart-1))"},
+        {"name": "Fun", "value": categories.get("fun", 0), "fill": "hsl(var(--chart-2))"},
+        {"name": "Moderation", "value": categories.get("moderation", 0), "fill": "hsl(var(--chart-3))"},
+        {"name": "Utility", "value": categories.get("utility", 0), "fill": "hsl(var(--chart-4))"},
     ]
-    peak_hours = [{"hour": f"{h:02d}:00", "users": 0} for h in range(0, 24, 2)]
+
+    top_servers = [
+        {"name": name, "commands": count}
+        for name, count in sorted(server_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    ]
+    if not top_servers:
+        guilds = list(bot_manager.guilds())
+        top_servers = [
+            {"name": g.name, "commands": 0}
+            for g in sorted(guilds, key=lambda x: x.member_count or 0, reverse=True)[:5]
+        ]
+
+    peak_hours = [{"hour": f"{h:02d}:00", "users": hour_counts.get(h, 0)} for h in range(0, 24, 2)]
+    top_users = []
+
     return AnalyticsData(
         commandBreakdown=command_breakdown,
         peakHours=peak_hours,

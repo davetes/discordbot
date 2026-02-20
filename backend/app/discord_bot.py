@@ -63,7 +63,7 @@ class DiscordBotManager:
                     logging.warning("Missing permissions to delete message: %s", reason)
                 except discord.HTTPException:
                     logging.exception("Failed to delete message: %s", reason)
-                await self._log_action("automod", f"{reason}: {message.content}")
+                await self._log_action("automod", f"{reason}: {message.content}", server=message.guild.name)
                 return
 
             await self._handle_prefix_command(message)
@@ -260,7 +260,7 @@ class DiscordBotManager:
         unicode_emojis = len(re.findall(r"[\U0001F300-\U0001FAFF]", content))
         return custom + unicode_emojis
 
-    async def _log_action(self, action: str, details: str) -> None:
+    async def _log_action(self, action: str, details: str, server: str = "") -> None:
         def _write() -> None:
             session = SessionLocal()
             try:
@@ -268,7 +268,7 @@ class DiscordBotManager:
                 entry = LogEntryModel(
                     id=int(datetime.now(timezone.utc).timestamp() * 1000),
                     timestamp=now,
-                    server="",
+                    server=server,
                     user="bot",
                     action=action,
                     details=details,
@@ -280,6 +280,17 @@ class DiscordBotManager:
                 session.close()
 
         await asyncio.to_thread(_write)
+
+    def _increment_command_usage_sync(self, name: str) -> None:
+        session = SessionLocal()
+        try:
+            row = session.query(CommandModel).filter(CommandModel.name == name).first()
+            if row is None:
+                return
+            row.usage = (row.usage or 0) + 1
+            session.commit()
+        finally:
+            session.close()
 
     async def _handle_prefix_command(self, message: discord.Message) -> None:
         content = (message.content or "").strip()
@@ -300,6 +311,8 @@ class DiscordBotManager:
                 logging.warning("Missing permissions to send command response")
             except discord.HTTPException:
                 logging.exception("Failed to send command response")
+            await asyncio.to_thread(self._increment_command_usage_sync, command_name)
+            await self._log_action("command", command_name, server=message.guild.name)
 
     def _load_prefix_sync(self, guild_id: int) -> str:
         session = SessionLocal()
