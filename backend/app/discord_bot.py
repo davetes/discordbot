@@ -83,6 +83,7 @@ class DiscordBotManager:
                     await member.send(self._format_template(welcome.get("message", ""), member))
                 except discord.Forbidden:
                     logging.warning("Missing permissions to DM member on join")
+            await self._log_action("join", f"{member.display_name} joined", server=member.guild.name)
 
         @self.client.event
         async def on_member_remove(member: discord.Member) -> None:  # type: ignore[override]
@@ -94,6 +95,15 @@ class DiscordBotManager:
             if channel:
                 content = self._format_template(leave.get("message", ""), member)
                 await channel.send(content)
+            await self._log_action("leave", f"{member.display_name} left", server=member.guild.name)
+
+        @self.client.event
+        async def on_guild_join(guild: discord.Guild) -> None:  # type: ignore[override]
+            await self._log_action("server_join", f"{guild.name} added", server=guild.name)
+
+        @self.client.event
+        async def on_guild_remove(guild: discord.Guild) -> None:  # type: ignore[override]
+            await self._log_action("server_leave", f"{guild.name} removed", server=guild.name)
 
     async def start(self) -> None:
         if self.client.is_closed():

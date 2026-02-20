@@ -266,7 +266,13 @@ async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
     total_users = sum(g.member_count or 0 for g in guilds)
     today = datetime.now(timezone.utc).date()
     command_rows = db.query(LogEntryModel).filter(LogEntryModel.action == "command").all()
+    change_rows = db.query(LogEntryModel).filter(LogEntryModel.action.in_(["join", "leave", "server_join", "server_leave"]))
+    change_rows = change_rows.all()
     commands_today = 0
+    commands_yesterday = 0
+    user_change = 0
+    server_change = 0
+    change_cutoff = datetime.now(timezone.utc) - timedelta(days=1)
     for row in command_rows:
         try:
             ts = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
@@ -274,11 +280,35 @@ async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
             continue
         if ts.date() == today:
             commands_today += 1
+        elif ts.date() == today - timedelta(days=1):
+            commands_yesterday += 1
+
+    command_change = commands_today - commands_yesterday
+    command_change_str = f"{command_change:+d}"
+
+    for row in change_rows:
+        try:
+            ts = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ts < change_cutoff:
+            continue
+        if row.action == "join":
+            user_change += 1
+        elif row.action == "leave":
+            user_change -= 1
+        elif row.action == "server_join":
+            server_change += 1
+        elif row.action == "server_leave":
+            server_change -= 1
+
+    server_change_str = f"{server_change:+d}"
+    user_change_str = f"{user_change:+d}"
 
     stats = [
-        DashboardCard(label="Total Servers", value=str(total_servers), change="+0", icon="Server"),
-        DashboardCard(label="Total Users", value=str(total_users), change="+0", icon="Users"),
-        DashboardCard(label="Commands Today", value=str(commands_today), change="+0", icon="Terminal"),
+        DashboardCard(label="Total Servers", value=str(total_servers), change=server_change_str, icon="Server"),
+        DashboardCard(label="Total Users", value=str(total_users), change=user_change_str, icon="Users"),
+        DashboardCard(label="Commands Today", value=str(commands_today), change=command_change_str, icon="Terminal"),
         DashboardCard(label="Voice Sessions", value="0", change="+0", icon="Headphones"),
     ]
     months = ["Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"]
@@ -312,6 +342,8 @@ async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
         "message": "Plus",
         "join": "UserPlus",
         "leave": "AlertTriangle",
+        "server_join": "Plus",
+        "server_leave": "AlertTriangle",
     }
     recent = [
         ActivityItem(
@@ -520,6 +552,8 @@ async def notifications(db: Session = Depends(get_db)) -> List[NotificationItem]
         "message": "Message sent",
         "join": "Member joined",
         "leave": "Member left",
+        "server_join": "Server added",
+        "server_leave": "Server removed",
     }
     return [
         NotificationItem(
