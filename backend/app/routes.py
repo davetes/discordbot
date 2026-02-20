@@ -137,6 +137,14 @@ class LogItem(BaseModel):
     level: str
 
 
+class NotificationItem(BaseModel):
+    id: int
+    title: str
+    message: str
+    time: str
+    level: str
+
+
 class BotSettings(BaseModel):
     general: dict
     automod: dict
@@ -256,10 +264,21 @@ async def dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
     guilds = list(bot_manager.guilds())
     total_servers = len(guilds)
     total_users = sum(g.member_count or 0 for g in guilds)
+    today = datetime.now(timezone.utc).date()
+    command_rows = db.query(LogEntryModel).filter(LogEntryModel.action == "command").all()
+    commands_today = 0
+    for row in command_rows:
+        try:
+            ts = datetime.strptime(row.timestamp, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if ts.date() == today:
+            commands_today += 1
+
     stats = [
         DashboardCard(label="Total Servers", value=str(total_servers), change="+0", icon="Server"),
         DashboardCard(label="Total Users", value=str(total_users), change="+0", icon="Users"),
-        DashboardCard(label="Commands Today", value="0", change="+0", icon="Terminal"),
+        DashboardCard(label="Commands Today", value=str(commands_today), change="+0", icon="Terminal"),
         DashboardCard(label="Voice Sessions", value="0", change="+0", icon="Headphones"),
     ]
     months = ["Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb"]
@@ -486,6 +505,28 @@ async def logs(db: Session = Depends(get_db)) -> List[LogItem]:
             user=row.user,
             action=row.action,
             details=row.details,
+            level=row.level,
+        )
+        for row in rows
+    ]
+
+
+@router.get("/notifications", response_model=List[NotificationItem])
+async def notifications(db: Session = Depends(get_db)) -> List[NotificationItem]:
+    rows = db.query(LogEntryModel).order_by(LogEntryModel.timestamp.desc()).limit(12).all()
+    title_map = {
+        "command": "Command used",
+        "automod": "Auto-moderation",
+        "message": "Message sent",
+        "join": "Member joined",
+        "leave": "Member left",
+    }
+    return [
+        NotificationItem(
+            id=row.id,
+            title=title_map.get(row.action, "Activity"),
+            message=(f"{row.server}: {row.details}" if row.server else row.details),
+            time=row.timestamp,
             level=row.level,
         )
         for row in rows

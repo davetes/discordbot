@@ -80,6 +80,14 @@ export type LogItem = {
   level: string;
 };
 
+export type NotificationItem = {
+  id: number;
+  title: string;
+  message: string;
+  time: string;
+  level: string;
+};
+
 export type BotSettings = {
   general: { name: string; status: string; activityType: string; avatarUrl: string };
   automod: { spamFilter: boolean; linkFilter: boolean; capsFilter: boolean; wordBlacklist: string[]; maxMentions: number; maxEmojis: number };
@@ -116,6 +124,7 @@ export const api = {
   commands: () => apiGet<CommandItem[]>("/commands"),
   analytics: (range: string) => apiGet<AnalyticsData>(`/analytics?range=${range}`),
   logs: () => apiGet<LogItem[]>("/logs"),
+  notifications: () => apiGet<NotificationItem[]>("/notifications"),
   settings: () => apiGet<BotSettings>("/settings"),
   serverSettings: (guildId: number) => apiGet<ServerSettings>(`/servers/${guildId}/settings`),
   saveServerSettings: (guildId: number, payload: ServerSettings) =>
