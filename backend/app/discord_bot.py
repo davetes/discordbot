@@ -10,7 +10,7 @@ import discord
 
 from .config import settings
 from .database import SessionLocal
-from .models import BotSettingsModel, LogEntryModel
+from .models import BotSettingsModel, LogEntryModel, CommandModel, ServerSettingsModel
 
 
 DEFAULT_SETTINGS = {
@@ -64,6 +64,9 @@ class DiscordBotManager:
                 except discord.HTTPException:
                     logging.exception("Failed to delete message: %s", reason)
                 await self._log_action("automod", f"{reason}: {message.content}")
+                return
+
+            await self._handle_prefix_command(message)
 
         @self.client.event
         async def on_member_join(member: discord.Member) -> None:  # type: ignore[override]
@@ -277,6 +280,44 @@ class DiscordBotManager:
                 session.close()
 
         await asyncio.to_thread(_write)
+
+    async def _handle_prefix_command(self, message: discord.Message) -> None:
+        content = (message.content or "").strip()
+        if not content:
+            return
+        prefix = await asyncio.to_thread(self._load_prefix_sync, message.guild.id)
+        if not content.startswith(prefix):
+            return
+        parts = content[len(prefix):].strip().split()
+        if not parts:
+            return
+        command_name = parts[0].lower()
+        response = await asyncio.to_thread(self._load_command_response_sync, command_name)
+        if response:
+            try:
+                await message.channel.send(response)
+            except discord.Forbidden:
+                logging.warning("Missing permissions to send command response")
+            except discord.HTTPException:
+                logging.exception("Failed to send command response")
+
+    def _load_prefix_sync(self, guild_id: int) -> str:
+        session = SessionLocal()
+        try:
+            row = session.query(ServerSettingsModel).filter(ServerSettingsModel.guild_id == guild_id).first()
+            return row.prefix if row and row.prefix else "!"
+        finally:
+            session.close()
+
+    def _load_command_response_sync(self, name: str) -> str | None:
+        session = SessionLocal()
+        try:
+            row = session.query(CommandModel).filter(CommandModel.name == name).first()
+            if row is None or not row.enabled:
+                return None
+            return row.description or None
+        finally:
+            session.close()
 
 
 bot_manager = DiscordBotManager()
