@@ -23,8 +23,8 @@ const Dashboard = () => {
           <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground text-sm">Overview of {botName} performance</p>
         </div>
-        <Badge variant="outline" className="gap-1.5 border-discord-green/30 text-discord-green">
-          <span className="w-2 h-2 rounded-full bg-discord-green animate-pulse" />
+        <Badge variant="outline" className="gap-1.5 border-discord-green/30 text-discord-green bg-discord-green/5">
+          <span className="w-2 h-2 rounded-full bg-discord-green" />
           Online • {data?.botInfo?.uptime ?? "0d 0h 0m"}
         </Badge>
       </div>
@@ -34,7 +34,7 @@ const Dashboard = () => {
         {statsCards.map((stat) => {
           const Icon = iconMap[stat.icon];
           return (
-            <Card key={stat.label} className="bg-card border-border">
+            <Card key={stat.label} className="stat-card">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -44,7 +44,7 @@ const Dashboard = () => {
                       <TrendingUp className="w-3 h-3" /> {stat.change}
                     </p>
                   </div>
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
                     <Icon className="w-5 h-5 text-primary" />
                   </div>
                 </div>
@@ -56,35 +56,35 @@ const Dashboard = () => {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground">Server Growth</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={serverGrowth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(228 6% 25%)" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(228 6% 18%)", border: "1px solid hsl(228 6% 25%)", borderRadius: 8, color: "hsl(210 17% 90%)" }} />
-                <Area type="monotone" dataKey="servers" stroke="hsl(235 86% 65%)" fill="hsl(235 86% 65% / 0.2)" strokeWidth={2} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 32% 91%)" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 100%)", border: "1px solid hsl(214 32% 91%)", borderRadius: 8, color: "hsl(222 47% 11%)" }} />
+                <Area type="monotone" dataKey="servers" stroke="hsl(222 47% 35%)" fill="hsl(222 47% 35% / 0.1)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-foreground">Commands This Week</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={commandUsage}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(228 6% 25%)" />
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <YAxis tick={{ fontSize: 12, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(228 6% 18%)", border: "1px solid hsl(228 6% 25%)", borderRadius: 8, color: "hsl(210 17% 90%)" }} />
-                <Bar dataKey="commands" fill="hsl(235 86% 65%)" radius={[4, 4, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 32% 91%)" />
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <YAxis tick={{ fontSize: 12, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 100%)", border: "1px solid hsl(214 32% 91%)", borderRadius: 8, color: "hsl(222 47% 11%)" }} />
+                <Bar dataKey="commands" fill="hsl(222 47% 35%)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -92,7 +92,7 @@ const Dashboard = () => {
       </div>
 
       {/* Recent Activity */}
-      <Card className="bg-card border-border">
+      <Card className="glass-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-foreground">Recent Activity</CardTitle>
         </CardHeader>
@@ -101,8 +101,8 @@ const Dashboard = () => {
             {recentActivity.map((item) => {
               const Icon = activityIconMap[item.icon];
               return (
-                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-secondary transition-colors">
+                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center shrink-0 mt-0.5">
                     <Icon className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">

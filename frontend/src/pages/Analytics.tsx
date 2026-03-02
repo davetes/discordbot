@@ -35,7 +35,7 @@ const Analytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Command Usage Breakdown</CardTitle>
           </CardHeader>
@@ -47,7 +47,7 @@ const Analytics = () => {
                     <Cell key={i} fill={entry.fill} />
                   ))}
                 </Pie>
-                <Tooltip contentStyle={{ backgroundColor: "hsl(228 6% 18%)", border: "1px solid hsl(228 6% 25%)", borderRadius: 8, color: "hsl(210 17% 90%)" }} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 100%)", border: "1px solid hsl(214 32% 91%)", borderRadius: 8, color: "hsl(222 47% 11%)" }} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -61,18 +61,18 @@ const Analytics = () => {
           </div>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Peak Activity Hours</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
               <AreaChart data={peakHours}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(228 6% 25%)" />
-                <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(215 10% 55%)" }} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(228 6% 18%)", border: "1px solid hsl(228 6% 25%)", borderRadius: 8, color: "hsl(210 17% 90%)" }} />
-                <Area type="monotone" dataKey="users" stroke="hsl(280 60% 55%)" fill="hsl(280 60% 55% / 0.2)" strokeWidth={2} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(214 32% 91%)" />
+                <XAxis dataKey="hour" tick={{ fontSize: 11, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(215 16% 47%)" }} axisLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: "hsl(0 0% 100%)", border: "1px solid hsl(214 32% 91%)", borderRadius: 8, color: "hsl(222 47% 11%)" }} />
+                <Area type="monotone" dataKey="users" stroke="hsl(262 83% 58%)" fill="hsl(262 83% 58% / 0.1)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -80,7 +80,7 @@ const Analytics = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Top Servers</CardTitle>
           </CardHeader>
@@ -104,7 +104,7 @@ const Analytics = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-card border-border">
+        <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Top Users</CardTitle>
           </CardHeader>

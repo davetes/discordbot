@@ -61,7 +61,7 @@ const Servers = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((server) => (
-          <Card key={server.id} className="bg-card border-border hover:border-primary/40 transition-colors">
+          <Card key={server.id} className="bg-card border-border hover:shadow-md hover:border-primary/30 transition-all duration-200">
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">

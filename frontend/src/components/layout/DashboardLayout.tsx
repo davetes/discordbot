@@ -26,7 +26,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card shrink-0">
+          <header className="h-14 border-b border-sidebar-border flex items-center justify-between px-4 bg-card/80 backdrop-blur-md shrink-0">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
               <h1 className="font-semibold text-foreground hidden sm:block">{botInfo?.name ?? "Discord Bot"} Dashboard</h1>
@@ -36,12 +36,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Quick search..."
-                  className="w-56 pl-9 h-8 bg-secondary border-none text-sm"
+                  className="w-56 pl-9 h-8 bg-secondary border-border"
                 />
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+                  <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground hover:bg-secondary">
                     <Bell className="w-4 h-4" />
                     {notifications.length > 0 && (
                       <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />

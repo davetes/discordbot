@@ -4,53 +4,53 @@
 
 @layer base {
   :root {
-    --background: 228 6% 15%;
-    --foreground: 210 17% 90%;
+    --background: 0 0% 96%;
+    --foreground: 222 47% 11%;
 
-    --card: 228 6% 18%;
-    --card-foreground: 210 17% 90%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 228 6% 20%;
-    --popover-foreground: 210 17% 90%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 235 86% 65%;
+    --primary: 222 47% 35%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 228 6% 22%;
-    --secondary-foreground: 210 17% 85%;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 228 6% 22%;
-    --muted-foreground: 215 10% 55%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 235 86% 65%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 210 20% 96%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 228 6% 25%;
-    --input: 228 6% 25%;
-    --ring: 235 86% 65%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 35%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 228 7% 12%;
-    --sidebar-foreground: 210 17% 80%;
-    --sidebar-primary: 235 86% 65%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 222 47% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 6% 18%;
-    --sidebar-accent-foreground: 210 17% 90%;
-    --sidebar-border: 228 6% 20%;
-    --sidebar-ring: 235 86% 65%;
+    --sidebar-accent: 210 20% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 222 47% 35%;
 
-    --discord-green: 139 47% 44%;
-    --discord-yellow: 38 96% 54%;
-    --discord-red: 0 72% 51%;
-    --chart-1: 235 86% 65%;
-    --chart-2: 139 47% 44%;
-    --chart-3: 38 96% 54%;
-    --chart-4: 280 60% 55%;
-    --chart-5: 190 70% 50%;
+    --discord-green: 142 76% 36%;
+    --discord-yellow: 38 92% 50%;
+    --discord-red: 0 84% 60%;
+    --chart-1: 222 47% 35%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 262 83% 58%;
+    --chart-5: 190 80% 45%;
   }
 }
 
@@ -60,5 +60,42 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Card Styles */
+@layer components {
+  .stat-card {
+    @apply bg-card border-border shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .glass-card {
+    @apply bg-card border-border shadow-sm;
+  }
+
+  .glass-card-hover {
+    @apply bg-card border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200;
+  }
+}
+
+/* Custom Scrollbar */
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
   }
 }
