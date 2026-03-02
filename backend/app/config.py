@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     discord_autostart: bool = True
     discord_guild_id: int | None = None
     discord_default_channel_id: int | None = None
+    groq_api_key: str | None = None
+    groq_model: str = "llama3-70b-8192"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
 
     @field_validator("discord_guild_id", "discord_default_channel_id", mode="before")
     @classmethod

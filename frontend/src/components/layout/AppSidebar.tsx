@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  LayoutDashboard, Server, Users, Terminal, BarChart3, Settings, ScrollText, Bot, MessageSquare,
+  LayoutDashboard, Server, Users, Terminal, BarChart3, Settings, ScrollText, Bot, MessageSquare, LogOut, User,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "@/components/NavLink";
@@ -10,6 +10,8 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -24,6 +26,7 @@ const navItems = [
 
 export function AppSidebar() {
   const { data: botInfo } = useQuery({ queryKey: ["bot-info"], queryFn: api.botInfo });
+  const { user, logout } = useAuth();
 
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
@@ -70,7 +73,30 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t border-sidebar-border">
-        <p className="text-xs text-muted-foreground">v{botInfo?.version ?? "1.0.0"} • Uptime: {botInfo?.uptime ?? "0d 0h 0m"}</p>
+        {/* User Profile Section */}
+        <div className="flex items-center gap-3 mb-3 p-2 rounded-lg bg-muted/30">
+          <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+            <User className="w-4 h-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{user?.name ?? "User"}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email ?? "user@example.com"}</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={logout}
+            className="flex-1 justify-start gap-2 text-muted-foreground hover:text-destructive"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        </div>
+        
+        <p className="text-xs text-muted-foreground mt-3">v{botInfo?.version ?? "1.0.0"} • Uptime: {botInfo?.uptime ?? "0d 0h 0m"}</p>
       </SidebarFooter>
     </Sidebar>
   );

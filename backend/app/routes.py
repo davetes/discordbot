@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
+import httpx
 
 from .config import settings
 from .discord_bot import bot_manager
@@ -205,6 +206,61 @@ class AiGenerateRequest(BaseModel):
 
 
 AI_INTENTS: List[AiIntent] = []
+
+
+def _pick_intent(intents: List[AiIntent], intent_id: str | None) -> AiIntent | None:
+    if intent_id:
+        return next((i for i in intents if i.id == intent_id), None)
+    enabled = next((i for i in intents if i.enabled), None)
+    return enabled or (intents[0] if intents else None)
+
+
+def _build_intent_context(intents: List[AiIntent]) -> str:
+    enabled = [intent for intent in intents if intent.enabled]
+    if not enabled:
+        return "No predefined intents are enabled."
+    lines = ["Enabled intents:"]
+    for intent in enabled:
+        lines.append(f"- {intent.label}: {intent.response}")
+    return "\n".join(lines)
+
+
+async def _generate_groq_response(prompt: str, intents: List[AiIntent], intent_id: str | None) -> str | None:
+    if not settings.groq_api_key:
+        return None
+
+    chosen = _pick_intent(intents, intent_id)
+    intent_context = _build_intent_context(intents)
+    preferred = ""
+    if chosen:
+        preferred = f"\nPreferred intent: {chosen.label}. Template: {chosen.response}"
+
+    system_prompt = (
+        "You are a helpful assistant for a Discord bot control panel. "
+        "Use the intent templates as guidance for concise replies. "
+        "Return only the response text." 
+        f"\n{intent_context}{preferred}"
+    )
+
+    payload = {
+        "model": settings.groq_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 256,
+    }
+
+    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+    url = f"{settings.groq_base_url.rstrip('/')}/chat/completions"
+
+    timeout = httpx.Timeout(20.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+    return data.get("choices", [{}])[0].get("message", {}).get("content")
 
 
 @router.get("/health")
@@ -797,13 +853,15 @@ async def save_ai_intents(payload: AiIntentPayload) -> dict:
 @router.post("/ai/generate")
 async def generate_ai_response(payload: AiGenerateRequest) -> dict:
     intents = AI_INTENTS
-    chosen = None
-    if payload.intent_id:
-        chosen = next((i for i in intents if i.id == payload.intent_id), None)
-    if chosen is None:
-        chosen = next((i for i in intents if i.enabled), None)
-    if chosen is None and intents:
-        chosen = intents[0]
+    try:
+        groq_response = await _generate_groq_response(payload.prompt, intents, payload.intent_id)
+    except httpx.HTTPError:
+        groq_response = None
+
+    if groq_response:
+        return {"response": groq_response}
+
+    chosen = _pick_intent(intents, payload.intent_id)
     canned = chosen.response if chosen else "Thanks for your message! We'll get back to you soon."
     response = f"{canned} (Suggested for: {payload.prompt})"
     return {"response": response}
