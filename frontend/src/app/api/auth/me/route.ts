@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = await cookies();
@@ -13,33 +15,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Decode token (in production, verify JWT properly)
-    try {
-      const decoded = JSON.parse(Buffer.from(token, "base64").toString());
+    const response = await fetch(`${BACKEND_URL}/auth/me?token=${encodeURIComponent(token)}`);
 
-      // Check if token is expired
-      if (decoded.exp < Date.now()) {
-        return NextResponse.json(
-          { success: false, error: "Token expired" },
-          { status: 401 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        user: {
-          id: decoded.userId,
-          email: decoded.email,
-          name: decoded.email.split("@")[0],
-        },
-        token,
-      });
-    } catch {
-      return NextResponse.json(
-        { success: false, error: "Invalid token" },
-        { status: 401 }
-      );
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
     }
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Auth check error:", error);
     return NextResponse.json(

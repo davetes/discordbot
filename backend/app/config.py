@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     groq_model: str = "llama3-70b-8192"
     groq_base_url: str = "https://api.groq.com/openai/v1"
+    secret_key: str = "your-secret-key-change-in-production"
 
     @field_validator("discord_guild_id", "discord_default_channel_id", mode="before")
     @classmethod

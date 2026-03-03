@@ -7,11 +7,12 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import httpx
+import bcrypt
 
 from .config import settings
 from .discord_bot import bot_manager
 from .database import SessionLocal
-from .models import BotSettingsModel, LogEntryModel, CommandModel, ServerSettingsModel
+from .models import BotSettingsModel, LogEntryModel, CommandModel, ServerSettingsModel, UserModel
 
 
 router = APIRouter()
@@ -865,3 +866,141 @@ async def generate_ai_response(payload: AiGenerateRequest) -> dict:
     canned = chosen.response if chosen else "Thanks for your message! We'll get back to you soon."
     response = f"{canned} (Suggested for: {payload.prompt})"
     return {"response": response}
+
+
+# Auth Pydantic Models
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    remember_me: bool = False
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class AuthResponse(BaseModel):
+    success: bool
+    token: str | None = None
+    user: dict | None = None
+    error: str | None = None
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+
+
+# JWT Secret (in production, use environment variable)
+JWT_SECRET = getattr(settings, "secret_key", "your-secret-key-change-in-production")
+
+
+def create_token(user_id: int, email: str) -> str:
+    """Create a simple JWT token"""
+    import base64
+    import json
+    
+    payload = {
+        "user_id": user_id,
+        "email": email,
+        "exp": datetime.now(timezone.utc).timestamp() + (30 * 24 * 60 * 60)  # 30 days
+    }
+    token = base64.b64encode(json.dumps(payload).encode()).decode()
+    return token
+
+
+def verify_token(token: str) -> dict | None:
+    """Verify JWT token"""
+    import base64
+    import json
+    
+    try:
+        payload = json.loads(base64.b64decode(token.encode()).decode())
+        if payload.get("exp", 0) < datetime.now(timezone.utc).timestamp():
+            return None
+        return payload
+    except:
+        return None
+
+
+@router.post("/auth/register", response_model=AuthResponse)
+async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    # Check if user exists
+    existing = db.query(UserModel).filter(UserModel.email == payload.email.lower()).first()
+    if existing:
+        return AuthResponse(success=False, error="Email already registered")
+    
+    # Check username exists
+    existing_username = db.query(UserModel).filter(UserModel.username == payload.username).first()
+    if existing_username:
+        return AuthResponse(success=False, error="Username already taken")
+    
+    # Hash password
+    password_hash = bcrypt.hashpw(payload.password.encode(), bcrypt.gensalt()).decode()
+    
+    # Create user
+    user = UserModel(
+        email=payload.email.lower(),
+        username=payload.username,
+        password_hash=password_hash,
+        is_active=True,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    # Create token
+    token = create_token(user.id, user.email)
+    
+    return AuthResponse(
+        success=True,
+        token=token,
+        user={"id": user.id, "username": user.username, "email": user.email}
+    )
+
+
+@router.post("/auth/login", response_model=AuthResponse)
+async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    # Find user
+    user = db.query(UserModel).filter(UserModel.email == payload.email.lower()).first()
+    if not user:
+        return AuthResponse(success=False, error="Invalid credentials")
+    
+    # Verify password
+    if not bcrypt.checkpw(payload.password.encode(), user.password_hash.encode()):
+        return AuthResponse(success=False, error="Invalid credentials")
+    
+    if not user.is_active:
+        return AuthResponse(success=False, error="Account is disabled")
+    
+    # Create token
+    token = create_token(user.id, user.email)
+    
+    return AuthResponse(
+        success=True,
+        token=token,
+        user={"id": user.id, "username": user.username, "email": user.email}
+    )
+
+
+@router.get("/auth/me", response_model=AuthResponse)
+async def get_current_user(token: str, db: Session = Depends(get_db)) -> AuthResponse:
+    # Verify token
+    payload = verify_token(token)
+    if not payload:
+        return AuthResponse(success=False, error="Invalid or expired token")
+    
+    # Find user
+    user = db.query(UserModel).filter(UserModel.id == payload.get("user_id")).first()
+    if not user:
+        return AuthResponse(success=False, error="User not found")
+    
+    return AuthResponse(
+        success=True,
+        token=token,
+        user={"id": user.id, "username": user.username, "email": user.email}
+    )
